@@ -1,5 +1,5 @@
-#include "hexerei.h"
-#include <stdint.h>
+#include "record.h"
+#include <string.h>
 
 #define START_CODE ':'
 #define START_CODE_LEN 1
@@ -33,34 +33,27 @@
 #define DECODE_CKSM(d,l,r) decode_hexstr(&d->data[DATA_IDX+l*2], CKSUM_LEN, r)
 #define DECODE_TYPE(d,r)   decode_hexstr(&d->data[TYPE_IDX], TYPE_LEN, r)
 
-static hex_record_type_e validate_record(hex_record_t *);
+static hexerei_rtype_e validate_record(hexerei_record_t *);
 static uint8_t hex_to_char(const char *);
 static hexerei_err_e decode_hexstr(const char *, size_t, char *);
 static uint8_t checksum(char *record, size_t len);
+static void checksum_hexstr(char *record, size_t len, char *hcks);
+
 
 hexerei_err_e
-hexerei_parse_record(FILE *f, hex_record_t *rec)
+hexerei_record_parse(FILE *f, hexerei_record_t *rec)
 {
-  if(rec == NULL) {
-    return NULL_INPUT_ERR;
-  }
+  if(!rec) return NULL_INPUT_ERR;
 
   int curr = getc(f);
-  if(curr == EOF) {
-    return NO_MORE_RECORDS_ERR;
-  }
-
-  if(curr != START_CODE) {
-    return MISSING_START_CODE_ERR;
-  }
+  if(curr == EOF) return NO_MORE_RECORDS_ERR;
+  if(curr != START_CODE) return MISSING_START_CODE_ERR;
 
   int idx = 0;
   for(;curr != '\r' && curr != '\n'; idx++) {
     rec->data[idx] = (char)curr;
     curr = getc(f);
-    if(curr == EOF) {
-      return WRONG_RECORD_FMT_ERR;
-    }
+    if(curr == EOF) return WRONG_RECORD_FMT_ERR;
   }
 
   if(curr == '\r') {
@@ -71,17 +64,58 @@ hexerei_parse_record(FILE *f, hex_record_t *rec)
   }
 
   rec->length = idx;
-	hex_record_type_e type = validate_record(rec);
-	if(type == INVALID_REC)
-	{
-		return WRONG_RECORD_FMT_ERR;
-	}
+	hexerei_rtype_e type = validate_record(rec);
+	if(type == INVALID_REC) return WRONG_RECORD_FMT_ERR;
+
 	rec->type = type;
 	return NO_ERR;
 }
 
-static hex_record_type_e
-validate_record(hex_record_t *rec) {
+hexerei_err_e
+hexerei_record_write(hexerei_record_t *r, int s, const char *d, size_t dl)
+{
+	if(r == NULL) return OUT_OF_BOUNDS_ERR;
+
+	uint8_t count;
+	hexerei_err_e cerr = DECODE_COUNT(r,(char*)&count);
+	if(cerr != NO_ERR || s < 0 || s+dl > 2*count)
+		return OUT_OF_BOUNDS_ERR;
+
+	// this loops the write-data two times
+	for(int i = 0; i < dl; i++) {
+		if(!VALID_HEX_DIGIT(d[i])) return INVALID_HEX_DIGIT;
+	}
+
+	for(int i = 0; i < dl; i++) {
+		r->data[DATA_IDX+s+i] = d[i];
+	}
+
+	char hex_cks[2];
+	checksum_hexstr(r->data, r->length, hex_cks);
+	for(int i = 0; i < 2; i++) {
+		r->data[DATA_IDX+count*2+i] = hex_cks[i];
+	}
+
+	return NO_ERR;
+}
+
+hexerei_err_e
+hexerei_record_read(hexerei_record_t *r, char *out, size_t l)
+{
+	if(r == NULL || out == NULL) 
+		return OUT_OF_BOUNDS_ERR;
+	
+	// expect validated record
+	uint8_t len;
+	DECODE_COUNT(r, (char*)&len);
+	memcpy(out, (r->data + DATA_IDX), l < len*2 ? l : len*2);
+	return NO_ERR;
+}
+
+
+static hexerei_rtype_e
+validate_record(hexerei_record_t *rec)
+{
   uint8_t len, cks, curr_cks;
 	uint16_t addr;
 
@@ -101,14 +135,14 @@ validate_record(hex_record_t *rec) {
 		return INVALID_REC;
 
 	switch(type) {
-		case EXTENDED_SEGMENT_ADDRESS_REC:
-		case EXTENDED_LINEAR_ADDRESS_REC:
+		case EXT_SEG_ADDR_REC:
+		case EXT_LIN_ADDR_REC:
 			if(len != 2) {
 				return INVALID_REC;
 			}
 			break;
-		case START_SEGMENT_ADDRESS_REC:
-		case START_LINEAR_ADDRESS_REC:
+		case START_SEG_ADDR_REC:
+		case START_LIN_ADDR_REC:
 			if((DECODE_ADDR(rec, (char*)&addr) != NO_ERR) || addr != 0 || len != 4) {
 				return INVALID_REC;
 			}
@@ -117,9 +151,8 @@ validate_record(hex_record_t *rec) {
 			break;
 	}
 
-	return (hex_record_type_e)type;
+	return (hexerei_rtype_e)type;
 }
-
 
 static hexerei_err_e
 decode_hexstr(const char *in, size_t i_len, char *out)
@@ -133,7 +166,6 @@ decode_hexstr(const char *in, size_t i_len, char *out)
 		buf[i%2] = in[i];
     if(i%2 != 0) out[out_idx++] = (char)hex_to_char(buf);
   }
-
   return NO_ERR;
 }
 
@@ -154,10 +186,20 @@ static uint8_t hex_to_char(const char *in)
 	return r;
 }
 
-static hexerei_err_e
-hex_to_u8(char *in, uint8_t *n)
+static void
+checksum_hexstr(char *record, size_t len, char *hcks)
 {
-	return NO_ERR;
+	// ip: len(cks) == 2
+	uint8_t cks = checksum(record, len);
+	uint8_t p = 0;
+	for(int i = 0; i < 2; i++) {
+		uint8_t cks_hilo = (cks & (0x0f << (1-i)*4)) >> ((1-i)*4);
+		if (cks_hilo < 10)
+			p = '0';
+		else
+			p = 'A' - 10;
+		hcks[i] = (char)(cks_hilo + p);
+	}
 }
 
 static uint8_t
