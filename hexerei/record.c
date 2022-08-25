@@ -1,4 +1,5 @@
-#include "record.h"
+#include "hexerei.h"
+
 #include <string.h>
 
 #define START_CODE ':'
@@ -43,14 +44,14 @@ static void checksum_hexstr(char *record, size_t len, char *hcks);
 hexerei_err_e
 hexerei_record_parse(FILE *f, hexerei_record_t *rec)
 {
-  if(!rec) return NULL_INPUT_ERR;
+  if(f == NULL || rec == NULL) return NULL_INPUT_ERR;
 
   int curr = getc(f);
   if(curr == EOF) return NO_MORE_RECORDS_ERR;
   if(curr != START_CODE) return MISSING_START_CODE_ERR;
 
   int idx = 0;
-  for(;curr != '\r' && curr != '\n'; idx++) {
+  for(; curr != '\r' && curr != '\n'; idx++) {
     rec->data[idx] = (char)curr;
     curr = getc(f);
     if(curr == EOF) return WRONG_RECORD_FMT_ERR;
@@ -171,7 +172,7 @@ decode_hexstr(const char *in, size_t i_len, char *out)
 
 static uint8_t hex_to_char(const char *in)
 {
-	// len == 2
+	// len == 2, already checked for hex digit
 	uint8_t r = 0;
 	uint8_t p = 0;
 	for(int i = 0; i < 2; i++) {
@@ -191,12 +192,10 @@ checksum_hexstr(char *record, size_t len, char *hcks)
 {
 	// ip: len(cks) == 2
 	uint8_t cks = checksum(record, len);
-	uint8_t p = 0;
 	for(int i = 0; i < 2; i++) {
 		uint8_t cks_hilo = (cks & (0x0f << (1-i)*4)) >> ((1-i)*4);
-		if (cks_hilo < 10)
-			p = '0';
-		else
+		uint8_t p = '0';
+		if (cks_hilo >= 10)
 			p = 'A' - 10;
 		hcks[i] = (char)(cks_hilo + p);
 	}

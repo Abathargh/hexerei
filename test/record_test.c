@@ -2,7 +2,6 @@
 
 #include "unity.h"
 #include "hexerei.h"
-#include "record.h"
 
 static char assert_buf[100];
 #define FMT_MSG(m,...) snprintf(assert_buf, 100, m, __VA_ARGS__);
@@ -45,6 +44,15 @@ void test_hexerei_record_parse(void)
 			{':', '0', '0', '0', '0', '0', '0', '0', '1', 'F', 'F'}}
 		}
 	};
+
+	hexerei_err_e nerr = hexerei_record_parse(NULL, NULL);
+	TEST_ASSERT(nerr == NULL_INPUT_ERR); 
+
+	const char *mstr = "mock";
+	FILE *mf = fmemopen((void*)mstr, strlen(mstr), "r");
+	hexerei_err_e merr = hexerei_record_parse(mf, NULL);
+	fclose(mf);
+	TEST_ASSERT(merr == NULL_INPUT_ERR);
 
 	for(int i = 0; i < sizeof(test_cases)/sizeof(struct record_test); i++) {
 		struct record_test test_case = test_cases[i];
