@@ -1,6 +1,7 @@
 #include "hexerei.h"
 
 #include <string.h>
+#include <stdio.h>
 
 #define START_CODE ':'
 #define START_CODE_LEN 1
@@ -42,7 +43,7 @@ static void checksum_hexstr(char *record, size_t len, char *hcks);
 
 
 hexerei_err_e
-hexerei_record_parse(FILE *f, hexerei_record_t *rec)
+hexerei_record_parse(FILE *f, hexerei_record_t **rec)
 {
   if(f == NULL || rec == NULL) return NULL_INPUT_ERR;
 
@@ -50,25 +51,37 @@ hexerei_record_parse(FILE *f, hexerei_record_t *rec)
   if(curr == EOF) return NO_MORE_RECORDS_ERR;
   if(curr != START_CODE) return MISSING_START_CODE_ERR;
 
+	hexerei_record_t *new_rec = malloc(sizeof(hexerei_record_t));
+	if(new_rec == NULL) return OUT_OF_MEM_ERR;
+
   int idx = 0;
-  for(; curr != '\r' && curr != '\n'; idx++) {
-    rec->data[idx] = (char)curr;
+  for(; curr != '\r' && curr != '\n' && idx < 64; idx++) {
+    new_rec->data[idx] = (char)curr;
     curr = getc(f);
-    if(curr == EOF) return WRONG_RECORD_FMT_ERR;
+    if(curr == EOF) {
+			free(new_rec);
+			return WRONG_RECORD_FMT_ERR;
+		}
   }
 
   if(curr == '\r') {
     curr = getc(f);
     if(curr == EOF || curr != '\n') {
-      return WRONG_RECORD_FMT_ERR;
+			free(new_rec);
+			return WRONG_RECORD_FMT_ERR;
     }
   }
 
-  rec->length = idx;
-	hexerei_rtype_e type = validate_record(rec);
-	if(type == INVALID_REC) return WRONG_RECORD_FMT_ERR;
+	new_rec->length = idx;
+	hexerei_rtype_e type = validate_record(new_rec);
+	if(type == INVALID_REC) {
+		free(new_rec);
+		return WRONG_RECORD_FMT_ERR;
+	}
 
-	rec->type = type;
+	new_rec->data[idx] = 0;
+	new_rec->type = type;
+	*rec = new_rec;
 	return NO_ERR;
 }
 

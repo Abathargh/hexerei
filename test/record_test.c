@@ -57,16 +57,17 @@ void test_hexerei_record_parse(void)
 	for(int i = 0; i < sizeof(test_cases)/sizeof(struct record_test); i++) {
 		struct record_test test_case = test_cases[i];
 		FILE *record_str = fmemopen((void*)test_case.input, strlen(test_case.input), "r");
-		hexerei_record_t record = {0};
+		hexerei_record_t *record;
 		hexerei_err_e err = hexerei_record_parse(record_str, &record);
 		fclose(record_str);
 		if(err != NO_ERR) {
 			TEST_ASSERT_EQUAL_MESSAGE(test_case.err, err, test_case.input);
 			continue;
 		}
-		TEST_ASSERT_EQUAL_INT(test_case.rec->length, record.length);
+		TEST_ASSERT_EQUAL_INT(test_case.rec->length, record->length);
 		TEST_ASSERT_MESSAGE(test_case.rec->length <= 32, "Max length = 32");
-		TEST_ASSERT_EQUAL_CHAR_ARRAY(test_case.rec->data, record.data, test_case.rec->length);
+		TEST_ASSERT_EQUAL_CHAR_ARRAY(test_case.rec->data, record->data, test_case.rec->length);
+		free(record);
 	}
 }
 
@@ -98,14 +99,14 @@ void test_hexerei_record_write(void)
 	for(int i = 0; i < sizeof(test_cases)/sizeof(struct record_test); i++) {
 		struct record_test test_case = test_cases[i];
 		FILE *record_str = fmemopen((void*)test_case.input, strlen(test_case.input), "r");
-		hexerei_record_t record = {0};
+		hexerei_record_t *record;
 		hexerei_err_e err = hexerei_record_parse(record_str, &record);
-
-		TEST_ASSERT_MESSAGE(err == NO_ERR, "Unexpected parsing error in write tests");
 		fclose(record_str);
 
+		TEST_ASSERT_MESSAGE(err == NO_ERR, "Unexpected parsing error in write tests");
+
 		hexerei_err_e werr = hexerei_record_write(
-			&record,
+			record,
 			test_case.start,
 			test_case.wdata,
 			strlen(test_case.wdata)
@@ -114,9 +115,11 @@ void test_hexerei_record_write(void)
 		FMT_MSG("Failed on test case #%d, input: %s", i, test_case.input);
 		if(werr != NO_ERR) {
 			TEST_ASSERT_EQUAL_MESSAGE(test_case.err, werr, assert_buf);
+			free(record);
 			continue;
 		}
-		TEST_ASSERT_EQUAL_CHAR_ARRAY_MESSAGE(test_case.exp, record.data, record.length, assert_buf);
+		TEST_ASSERT_EQUAL_CHAR_ARRAY_MESSAGE(test_case.exp, record->data, record->length, assert_buf);
+		free(record);
 	}
 }
 
@@ -134,13 +137,14 @@ void test_hexerei_record_read(void)
 	hexerei_err_e n_err = hexerei_record_read(NULL, NULL, 0);
 	TEST_ASSERT_MESSAGE(n_err == OUT_OF_BOUNDS_ERR, "Null record should err on out of bounds");
 
-	hexerei_record_t empty = {0};
-	TEST_ASSERT_MESSAGE(n_err == OUT_OF_BOUNDS_ERR, "Empty record should err on out of bounds");
+	hexerei_record_t *empty = &(hexerei_record_t){0};
+	hexerei_err_e nbuf_err = hexerei_record_read(empty, NULL, 0);
+	TEST_ASSERT_MESSAGE(nbuf_err == OUT_OF_BOUNDS_ERR, "Empty record should err on out of bounds");
 
 	for(int i = 0; i < sizeof(test_cases)/sizeof(struct record_test); i++) {
 		struct record_test test_case = test_cases[i];
 		FILE *record_str = fmemopen((void*)test_case.input, strlen(test_case.input), "r");
-		hexerei_record_t record = {0};
+		hexerei_record_t *record;
 		hexerei_err_e err = hexerei_record_parse(record_str, &record);
 
 		TEST_ASSERT_MESSAGE(err == NO_ERR, "Unexpected parsing error in write tests");
@@ -148,9 +152,11 @@ void test_hexerei_record_read(void)
 		
 		char buf[50];
 		memset(buf, 0, sizeof(buf) / sizeof(char));
-		hexerei_err_e rerr = hexerei_record_read(&record, buf, sizeof(buf) / sizeof(char)); 
+		hexerei_err_e rerr = hexerei_record_read(record, buf, sizeof(buf) / sizeof(char));
 		FMT_MSG("Failed on test case #%d, input: %s", i, test_case.input);
-		TEST_ASSERT_EQUAL_STRING_MESSAGE(test_case.exp, buf, assert_buf);		
+		TEST_ASSERT_MESSAGE(rerr == NO_ERR, assert_buf);
+		TEST_ASSERT_EQUAL_STRING_MESSAGE(test_case.exp, buf, assert_buf);
+		free(record);
 	}
 }
 
