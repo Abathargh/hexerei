@@ -45,11 +45,7 @@ cleanup:
 
 void hexerei_hex_free(hexerei_hex_file_t *hf)
 {
-	if(hf->records) {
-		for(int i = 0; i < hf->records->length; i++)
-			free(hf->records->items[i]);
-	}
-	free(hf->records);
+	hexerei_record_list_free(hf->records);
 	free(hf);
 	hf = NULL;
 }

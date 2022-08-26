@@ -54,7 +54,8 @@ void test_hexerei_record_parse(void)
 	fclose(mf);
 	TEST_ASSERT(merr == NULL_INPUT_ERR);
 
-	for(int i = 0; i < sizeof(test_cases)/sizeof(struct record_test); i++) {
+	int test_num = sizeof(test_cases)/sizeof(struct record_test);
+	for(int i = 0; i < test_num; i++) {
 		struct record_test test_case = test_cases[i];
 		FILE *record_str = fmemopen((void*)test_case.input, strlen(test_case.input), "r");
 		hexerei_record_t *record;
@@ -96,7 +97,8 @@ void test_hexerei_record_write(void)
 	hexerei_err_e e_err = hexerei_record_write(&empty, 0, NULL, 0);
 	TEST_ASSERT_EQUAL_MESSAGE(OUT_OF_BOUNDS_ERR, e_err, "Expected out of bounds on non-init rec");
 
-	for(int i = 0; i < sizeof(test_cases)/sizeof(struct record_test); i++) {
+	int test_num = sizeof(test_cases)/sizeof(struct record_test);
+	for(int i = 0; i < test_num; i++) {
 		struct record_test test_case = test_cases[i];
 		FILE *record_str = fmemopen((void*)test_case.input, strlen(test_case.input), "r");
 		hexerei_record_t *record;
@@ -141,7 +143,8 @@ void test_hexerei_record_read(void)
 	hexerei_err_e nbuf_err = hexerei_record_read(empty, NULL, 0);
 	TEST_ASSERT_MESSAGE(nbuf_err == OUT_OF_BOUNDS_ERR, "Empty record should err on out of bounds");
 
-	for(int i = 0; i < sizeof(test_cases)/sizeof(struct record_test); i++) {
+	int test_num = sizeof(test_cases)/sizeof(struct record_test);
+	for(int i = 0; i < test_num; i++) {
 		struct record_test test_case = test_cases[i];
 		FILE *record_str = fmemopen((void*)test_case.input, strlen(test_case.input), "r");
 		hexerei_record_t *record;

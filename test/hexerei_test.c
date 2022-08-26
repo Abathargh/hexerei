@@ -60,14 +60,14 @@ void test_hexerei_hex_readall(void)
 	TEST_ASSERT(null_err == NULL_INPUT_ERR);
 	fclose(fmock);
 
-	for(int i = 0; i < sizeof(test_cases)/sizeof(struct hex_test); i++) {
+	for(size_t i = 0; i < sizeof(test_cases)/sizeof(struct hex_test); i++) {
 		struct hex_test test_case = test_cases[i];
 		FILE *f = fmemopen((void*)test_case.input, strlen(test_case.input), "r");
 		hexerei_hex_file_t *hfile;
 		hexerei_err_e rerr = hexerei_hex_readall(f, &hfile);
 		fclose(f);
 
-		FMT_MSG("Failed on test case #%d, input: %s", i, test_case.input);
+		FMT_MSG("Failed on test case #%ld, input: %s", i, test_case.input);
 		TEST_ASSERT_MESSAGE(hfile != NULL, assert_buf);
 		
 		if(rerr != NO_ERR) {

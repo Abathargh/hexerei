@@ -96,11 +96,11 @@ hexerei_record_write(hexerei_record_t *r, int s, const char *d, size_t dl)
 		return OUT_OF_BOUNDS_ERR;
 
 	// this loops the write-data two times
-	for(int i = 0; i < dl; i++) {
+	for(size_t i = 0; i < dl; i++) {
 		if(!VALID_HEX_DIGIT(d[i])) return INVALID_HEX_DIGIT;
 	}
 
-	for(int i = 0; i < dl; i++) {
+	for(size_t i = 0; i < dl; i++) {
 		r->data[DATA_IDX+s+i] = d[i];
 	}
 
@@ -135,7 +135,7 @@ validate_record(hexerei_record_t *rec)
 
 	if((rec->length < MIN_REC_LEN) ||
 	 	(DECODE_COUNT(rec, (char*)&len) != NO_ERR) ||
-		(rec->length != MIN_REC_LEN + 2*len) ||
+		((int)rec->length != MIN_REC_LEN + 2*len) ||
 		(DECODE_CKSM(rec, len, (char*)&curr_cks) != NO_ERR)
 	)
     return INVALID_REC;

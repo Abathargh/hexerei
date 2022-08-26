@@ -64,7 +64,7 @@ void LIST_free(LIST_NAME_TYPE *list)
 {
 	if(list == NULL) return;
 #ifdef LIST_POINTER_TYPE
-	for(int i = 0; i < list->length; i++)
+	for(size_t i = 0; i < list->length; i++)
 		free(list->items[i]);
 #endif
 	free(list->items);
