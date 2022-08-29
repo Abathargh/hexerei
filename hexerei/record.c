@@ -25,21 +25,17 @@
 #define MIN_REC_LEN  (START_CODE_LEN + COUNT_LEN + \
                       ADDR_LEN + TYPE_LEN + CKSUM_LEN)
 
-#define IS_DIGIT(d)        (d >= '0' && d <= '9')
-#define IS_HEXCHAR_LO(d)   (d >= 'a' && d <= 'f')
-#define IS_HEXCHAR_HI(d)   (d >= 'A' && d <= 'F')
-#define VALID_HEX_DIGIT(d) (IS_DIGIT(d) || IS_HEXCHAR_LO(d) || IS_HEXCHAR_HI(d))
-
 #define DECODE_COUNT(d,r)  decode_hexstr(&d->data[COUNT_IDX], COUNT_LEN, r)
 #define DECODE_ADDR(d,r)   decode_hexstr(&d->data[ADDR_IDX], ADDR_LEN, r)
 #define DECODE_CKSM(d,l,r) decode_hexstr(&d->data[DATA_IDX+l*2], CKSUM_LEN, r)
 #define DECODE_TYPE(d,r)   decode_hexstr(&d->data[TYPE_IDX], TYPE_LEN, r)
 
 static hexerei_rtype_e validate_record(hexerei_record_t *);
-static uint8_t hex_to_char(const char *);
-static hexerei_err_e decode_hexstr(const char *, size_t, char *);
 static uint8_t checksum(char *record, size_t len);
 static void checksum_hexstr(char *record, size_t len, char *hcks);
+
+extern uint8_t hex_to_char(const char *);
+extern hexerei_err_e decode_hexstr(const char *, size_t, char *);
 
 
 hexerei_err_e
@@ -79,6 +75,12 @@ hexerei_record_parse(FILE *f, hexerei_record_t **rec)
 		return WRONG_RECORD_FMT_ERR;
 	}
 
+	DECODE_COUNT(new_rec, (char*)&new_rec->count);
+
+	uint8_t addr[2];
+	DECODE_ADDR(new_rec, (char*)addr);
+	new_rec->address = addr[0] << 8 | addr[1];
+
 	new_rec->data[idx] = 0;
 	new_rec->type = type;
 	*rec = new_rec;
@@ -114,16 +116,37 @@ hexerei_record_write(hexerei_record_t *r, int s, const char *d, size_t dl)
 }
 
 hexerei_err_e
-hexerei_record_read(hexerei_record_t *r, char *out, size_t l)
+hexerei_record_data(hexerei_record_t *r, const char  **datap)
 {
-	if(r == NULL || out == NULL) 
+	if(r == NULL) return NULL_INPUT_ERR;
+	*datap = r->data + DATA_IDX;
+	return NO_ERR;
+}
+
+hexerei_err_e
+hexerei_record_read_hex(hexerei_record_t *r, char *out, size_t l)
+{
+	if(r == NULL || out == NULL)
 		return OUT_OF_BOUNDS_ERR;
-	
+
 	// expect validated record
 	uint8_t len;
 	DECODE_COUNT(r, (char*)&len);
 	memcpy(out, (r->data + DATA_IDX), l < len*2 ? l : len*2);
 	return NO_ERR;
+}
+
+hexerei_err_e
+hexerei_record_read(hexerei_record_t *r, uint8_t *out, size_t l)
+{
+	if(r == NULL || out == NULL)
+		return OUT_OF_BOUNDS_ERR;
+
+	// expect validated record
+	uint8_t len;
+	DECODE_COUNT(r, (char*)&len);
+	hexerei_err_e err = decode_hexstr((r->data + DATA_IDX), l < len*2 ? l : len*2, (char*)out);
+	return err;
 }
 
 
@@ -166,38 +189,6 @@ validate_record(hexerei_record_t *rec)
 	}
 
 	return (hexerei_rtype_e)type;
-}
-
-static hexerei_err_e
-decode_hexstr(const char *in, size_t i_len, char *out)
-{
-	// len(out) == len(in) / 2
-  char buf[2] = {};
-	int out_idx = 0;
-  for(size_t i = 0; i < i_len; i++) {
-    if(!VALID_HEX_DIGIT(in[i]))
-			return INVALID_HEX_DIGIT;
-		buf[i%2] = in[i];
-    if(i%2 != 0) out[out_idx++] = (char)hex_to_char(buf);
-  }
-  return NO_ERR;
-}
-
-static uint8_t hex_to_char(const char *in)
-{
-	// len == 2, already checked for hex digit
-	uint8_t r = 0;
-	uint8_t p = 0;
-	for(int i = 0; i < 2; i++) {
-		if (IS_DIGIT(in[i]))
-			p = '0';
-		else if (IS_HEXCHAR_LO(in[i]))
-			p = 'a' - 10;
-		else if (IS_HEXCHAR_HI(in[i]))
-			p =  'A' - 10;
-		r |= (in[i] - p) << ((1-i)*4);
-	}
-	return r;
 }
 
 static void

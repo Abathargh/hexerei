@@ -5,7 +5,7 @@ set(CMAKE_C_STANDARD 99)
 add_compile_options(-Wall -Wextra)
 file(GLOB_RECURSE TEST_SOURCES "hexerei/*.*" "lib/list/*.*" "lib/unity/src/*.*")
 
-add_library(hexerei hexerei/hexerei.c hexerei/record.c)
+add_library(hexerei hexerei/hexerei.c hexerei/record.c hexerei/hexstr.c)
 target_include_directories(hexerei PRIVATE lib/list)
 
 set(RECORD_TEST ${TEST_SOURCES} "test/record_test.c")
