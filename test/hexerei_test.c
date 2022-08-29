@@ -60,14 +60,15 @@ void test_hexerei_hex_readall(void)
 	TEST_ASSERT(null_err == NULL_INPUT_ERR);
 	fclose(fmock);
 
-	for(size_t i = 0; i < sizeof(test_cases)/sizeof(struct hex_test); i++) {
+	int test_num = sizeof(test_cases)/sizeof(struct hex_test);
+	for(int i = 0; i < test_num; i++) {
 		struct hex_test test_case = test_cases[i];
 		FILE *f = fmemopen((void*)test_case.input, strlen(test_case.input), "r");
 		hexerei_hex_file_t *hfile;
 		hexerei_err_e rerr = hexerei_hex_readall(f, &hfile);
 		fclose(f);
 
-		FMT_MSG("Failed on test case #%ld, input: %s", i, test_case.input);
+		FMT_MSG("Failed on test case #%d, input: %s", i, test_case.input);
 		TEST_ASSERT_MESSAGE(hfile != NULL, assert_buf);
 		
 		if(rerr != NO_ERR) {
@@ -80,10 +81,65 @@ void test_hexerei_hex_readall(void)
 		TEST_ASSERT_MESSAGE(tokens != NULL, assert_buf);
 
 		TEST_ASSERT_EQUAL_CHAR_ARRAY_MESSAGE(tokens->items[i], hfile->records->items[i]->data, tokens->length, assert_buf);
-		tokenizer_free(tokens);
+		tokenizer_free_all(tokens);
 		hexerei_hex_free(hfile);
 	}
 }
+
+void test_hexerei_hex_read_at(void)
+{
+	const char
+	*hex_input =
+		":020000021000EC\r\n"
+		":10C20000E0A5E6F6FDFFE0AEE00FE6FCFDFFE6FD93\r\n"
+		":10C21000FFFFF6F50EFE4B66F2FA0CFEF2F40EFE90\r\n"
+		":10C22000F04EF05FF06CF07DCA0050C2F086F097DF\r\n"
+		":10C23000F04AF054BCF5204830592D02E018BB03F9\r\n"
+		":020000022000DC\r\n"
+		":04000000FA00000200\r\n"
+		":00000001FF\r\n";
+
+	struct hex_test {
+		uint32_t position;
+		size_t size;
+		hexerei_err_e err;
+		const uint8_t expected[50];
+	} test_cases[] = {
+		{0, 10, OUT_OF_BOUNDS_ERR, {}},
+		{0x1000*16 + 0xC200, 16, NO_ERR, {0xE0, 0xA5, 0xE6, 0xF6, 0xFD, 0xFF, 0xE0, 0xAE, 0xE0, 0x0F, 0xE6, 0xFC, 0xFD, 0xFF, 0xE6, 0xFD}},
+		{0x1000*16 + 0xC200, 14, NO_ERR, {0xE0, 0xA5, 0xE6, 0xF6, 0xFD, 0xFF, 0xE0, 0xAE, 0xE0, 0x0F, 0xE6, 0xFC, 0xFD, 0xFF}},
+		{0x1000*16 + 0xC200, 18, NO_ERR, {0xE0, 0xA5, 0xE6, 0xF6, 0xFD, 0xFF, 0xE0, 0xAE, 0xE0, 0x0F, 0xE6, 0xFC, 0xFD, 0xFF, 0xE6, 0xFD, 0xFF, 0xFF}},
+		{0x1000*16 + 0xC202, 16, NO_ERR, {0xE6, 0xF6, 0xFD, 0xFF, 0xE0, 0xAE, 0xE0, 0x0F, 0xE6, 0xFC, 0xFD, 0xFF, 0xE6, 0xFD, 0xFF, 0xFF}},
+		{0x2000*16 - 2, 4, OUT_OF_BOUNDS_ERR, {0}},
+		{0x2000*16, 6, OUT_OF_BOUNDS_ERR, {0}},
+		{0x2000*16, 4, NO_ERR, {0xFA, 0x00, 0x00, 0x02}},
+	};
+
+	hexerei_hex_file_t *hexfile = &(hexerei_hex_file_t){0};
+	FILE *f = fmemopen((void*)hex_input, strlen(hex_input), "r");
+	hexerei_err_e herr = hexerei_hex_readall(f, &hexfile);
+	fclose(f);
+
+	TEST_ASSERT(herr == NO_ERR && hexfile != NULL);
+
+	int test_num = sizeof(test_cases)/sizeof(struct hex_test);
+	for(int i = 0; i < test_num; i++) {
+		struct hex_test test_case = test_cases[i];
+		FMT_MSG("Failed on test case #%d, pos: %d, len: %ld", i, test_case.position, test_case.size);
+		uint8_t *read_data = calloc(test_case.size, sizeof(uint8_t));
+		hexerei_err_e rerr = hexerei_hex_read_at(hexfile,test_case.position,test_case.size,read_data);
+
+		if(rerr != NO_ERR) {
+			TEST_ASSERT_EQUAL_MESSAGE(test_case.err, rerr, assert_buf);
+			free(read_data);
+			continue;
+		}
+		TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(test_case.expected, read_data, test_case.size, assert_buf);
+		free(read_data);
+	}
+	hexerei_hex_free(hexfile);
+}
+
 
 static tokenizer_t
 *tokenize(const char *in, const char *token)
@@ -104,7 +160,7 @@ static tokenizer_t
 				size_t tok_size = in - tok_beg + 1;
 				char *buf = malloc(sizeof(char) * (tok_size+1));
 				if(buf == NULL) {
-					tokenizer_free(out);
+					tokenizer_free_all(out);
 					return NULL;
 				}
 
@@ -129,6 +185,7 @@ int main(void)
 {
 	UNITY_BEGIN();
 	RUN_TEST(test_hexerei_hex_readall);
+	RUN_TEST(test_hexerei_hex_read_at);
 	return UNITY_END();
 }
 

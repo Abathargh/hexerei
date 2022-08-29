@@ -4,9 +4,14 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#define IS_DIGIT(d)        (d >= '0' && d <= '9')
+#define IS_HEXCHAR_LO(d)   (d >= 'a' && d <= 'f')
+#define IS_HEXCHAR_HI(d)   (d >= 'A' && d <= 'F')
+#define VALID_HEX_DIGIT(d) (IS_DIGIT(d) || IS_HEXCHAR_LO(d) || IS_HEXCHAR_HI(d))
+
 typedef enum hexerei_err_e {
   NO_ERR,
-	OUT_OF_MEM_ERR, 
+	OUT_OF_MEM_ERR,
 
 	NO_MORE_RECORDS_ERR,
   MISSING_START_CODE_ERR,
@@ -30,7 +35,9 @@ typedef enum hexerei_rtype_e{
 } hexerei_rtype_e;
 
 typedef struct hexerei_record_t {
-	size_t length;
+	size_t   length;
+	uint8_t  count;
+	uint16_t address;
 	hexerei_rtype_e type;
 	char data[64];
 } hexerei_record_t;
@@ -46,12 +53,14 @@ typedef struct hexerei_hex_file_t {
 
 hexerei_err_e hexerei_record_parse(FILE *f, hexerei_record_t **rec);
 hexerei_err_e hexerei_record_write(hexerei_record_t *record, int start, const char *data, size_t length);
-hexerei_err_e hexerei_record_read(hexerei_record_t *record, char *output, size_t length);
+hexerei_err_e hexerei_record_read_hex(hexerei_record_t *record, char *output, size_t length);
+hexerei_err_e hexerei_record_read(hexerei_record_t *record, uint8_t *output, size_t length);
+
 
 hexerei_err_e hexerei_hex_readall(FILE *f, hexerei_hex_file_t **hf);
-hexerei_err_e hexerei_hex_read_at(hexerei_hex_file_t *hf, uint32_t pos, size_t size);
+hexerei_err_e hexerei_hex_read_at(hexerei_hex_file_t *hf, uint32_t pos, size_t size, uint8_t *read);
 hexerei_err_e hexerei_hex_write_at(hexerei_hex_file_t *hf, uint32_t pos, size_t size);
-void hexerei_hex_free(hexerei_hex_file_t *hf);
+void          hexerei_hex_free(hexerei_hex_file_t *hf);
 
 
 #endif

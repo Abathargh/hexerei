@@ -25,21 +25,29 @@ void test_hexerei_record_parse(void)
 		{":00\r\n", WRONG_RECORD_FMT_ERR, NULL},
 		{":020000021000EC\r\n", NO_ERR, &(hexerei_record_t) {
 			15,
+			2,
+			0,
 			EXT_SEG_ADDR_REC,
 			{':', '0', '2', '0', '0', '0', '0', '0', '2', '1', '0', '0', '0', 'E', 'C'}}
 		},
 		{":0400000300000000F9\r\n", NO_ERR, &(hexerei_record_t){
 			19,
+			4,
+			0,
 			START_SEG_ADDR_REC,
 			{':', '0', '4', '0', '0', '0', '0', '0', '3', '0', '0', '0', '0', '0', '0', '0', '0', 'F', '9'}}
 		},
 		{":06058000000A000000006B\r\n", NO_ERR, &(hexerei_record_t){
 			23,
+			6,
+			0x0580,
 			DATA_REC,
 			{':', '0', '6', '0', '5', '8', '0', '0', '0', '0', '0', '0', 'A', '0', '0', '0', '0', '0', '0', '0', '0', '6', 'B'}}
 		},
 		{":00000001FF\r\n", NO_ERR, &(hexerei_record_t){
 			11,
+			0,
+			0x00,
 			EOF_REC,
 			{':', '0', '0', '0', '0', '0', '0', '0', '1', 'F', 'F'}}
 		}
@@ -61,13 +69,16 @@ void test_hexerei_record_parse(void)
 		hexerei_record_t *record;
 		hexerei_err_e err = hexerei_record_parse(record_str, &record);
 		fclose(record_str);
+		FMT_MSG("Failed on test case #%d, input: %s", i, test_case.input);
 		if(err != NO_ERR) {
-			TEST_ASSERT_EQUAL_MESSAGE(test_case.err, err, test_case.input);
+			TEST_ASSERT_EQUAL_MESSAGE(test_case.err, err, assert_buf);
 			continue;
 		}
-		TEST_ASSERT_EQUAL_INT(test_case.rec->length, record->length);
+		TEST_ASSERT_EQUAL_size_t_MESSAGE(test_case.rec->length, record->length, assert_buf);
 		TEST_ASSERT_MESSAGE(test_case.rec->length <= 32, "Max length = 32");
-		TEST_ASSERT_EQUAL_CHAR_ARRAY(test_case.rec->data, record->data, test_case.rec->length);
+		TEST_ASSERT_EQUAL_UINT8_MESSAGE(test_case.rec->count, record->count, assert_buf);
+		TEST_ASSERT_EQUAL_UINT16_MESSAGE(test_case.rec->address, record->address, assert_buf);
+		TEST_ASSERT_EQUAL_CHAR_ARRAY_MESSAGE(test_case.rec->data, record->data, test_case.rec->length, assert_buf);
 		free(record);
 	}
 }
@@ -125,7 +136,7 @@ void test_hexerei_record_write(void)
 	}
 }
 
-void test_hexerei_record_read(void)
+void test_hexerei_record_read_hex(void)
 {
 	struct record_test {
 		const char *input;
@@ -134,6 +145,43 @@ void test_hexerei_record_read(void)
 		{":020000021000EC\r\n", "1000"},
 		{":06058000000A000000006B\r\n", "000A00000000"},
 		{":00000001FF\r\n", ""}
+	};
+
+	hexerei_err_e n_err = hexerei_record_read_hex(NULL, NULL, 0);
+	TEST_ASSERT_MESSAGE(n_err == OUT_OF_BOUNDS_ERR, "Null record should err on out of bounds");
+
+	hexerei_record_t *empty = &(hexerei_record_t){0};
+	hexerei_err_e nbuf_err = hexerei_record_read_hex(empty, NULL, 0);
+	TEST_ASSERT_MESSAGE(nbuf_err == OUT_OF_BOUNDS_ERR, "Empty record should err on out of bounds");
+
+	int test_num = sizeof(test_cases)/sizeof(struct record_test);
+	for(int i = 0; i < test_num; i++) {
+		struct record_test test_case = test_cases[i];
+		FILE *record_str = fmemopen((void*)test_case.input, strlen(test_case.input), "r");
+		hexerei_record_t *record;
+		hexerei_err_e err = hexerei_record_parse(record_str, &record);
+
+		TEST_ASSERT_MESSAGE(err == NO_ERR, "Unexpected parsing error in write tests");
+		fclose(record_str);
+		
+		char buf[50];
+		memset(buf, 0, sizeof(buf) / sizeof(char));
+		hexerei_err_e rerr = hexerei_record_read_hex(record, buf, sizeof(buf) / sizeof(char));
+		FMT_MSG("Failed on test case #%d, input: %s", i, test_case.input);
+		TEST_ASSERT_MESSAGE(rerr == NO_ERR, assert_buf);
+		TEST_ASSERT_EQUAL_STRING_MESSAGE(test_case.exp, buf, assert_buf);
+		free(record);
+	}
+}
+void test_hexerei_record_read(void)
+{
+	struct record_test {
+		const char *input;
+		const uint8_t exp[16];
+	} test_cases[] = {
+		{":020000021000EC\r\n", {0x10, 0x00}},
+		{":06058000000A000000006B\r\n", {0x00, 0x0A, 0x00, 0x00, 0x00, 0x00}},
+		{":00000001FF\r\n", {}}
 	};
 
 	hexerei_err_e n_err = hexerei_record_read(NULL, NULL, 0);
@@ -152,8 +200,8 @@ void test_hexerei_record_read(void)
 
 		TEST_ASSERT_MESSAGE(err == NO_ERR, "Unexpected parsing error in write tests");
 		fclose(record_str);
-		
-		char buf[50];
+
+		uint8_t buf[50];
 		memset(buf, 0, sizeof(buf) / sizeof(char));
 		hexerei_err_e rerr = hexerei_record_read(record, buf, sizeof(buf) / sizeof(char));
 		FMT_MSG("Failed on test case #%d, input: %s", i, test_case.input);
@@ -167,6 +215,7 @@ int main (void) {
 	UNITY_BEGIN();
 	RUN_TEST(test_hexerei_record_parse);
 	RUN_TEST(test_hexerei_record_write);
+	RUN_TEST(test_hexerei_record_read_hex);
 	RUN_TEST(test_hexerei_record_read);
 	return UNITY_END();
 }
