@@ -42,6 +42,7 @@ typedef struct LIST_NAME_TYPE {
 #define LIST_append LIST_FUNC_NAME(append)
 #define LIST_init LIST_FUNC_NAME(init)
 #define LIST_free LIST_FUNC_NAME(free)
+#define LIST_free_all LIST_FUNC_NAME(free_all)
 
 #ifndef LIST_NO_ALLOC
 static inline
@@ -62,15 +63,22 @@ LIST_NAME_TYPE *LIST_init(void)
 static inline
 void LIST_free(LIST_NAME_TYPE *list)
 {
+	free(list->items);
+	free(list);
+	list = NULL;
+}
+
+static inline
+void LIST_free_all(LIST_NAME_TYPE *list)
+{
 	if(list == NULL) return;
 #ifdef LIST_POINTER_TYPE
 	for(size_t i = 0; i < list->length; i++)
 		free(list->items[i]);
 #endif
-	free(list->items);
-	free(list);
-	list = NULL;
+	LIST_free(list);
 }
+
 #endif
 
 static inline
@@ -96,6 +104,7 @@ list_err_e LIST_append(LIST_NAME_TYPE *list, LIST_T item)
 #undef LIST_init
 #undef LIST_append
 #undef LIST_free
+#undef LIST_free_all
 #ifdef LIST_POINTER_TYPE
 #undef LIST_POINTER_TYPE
 #endif
