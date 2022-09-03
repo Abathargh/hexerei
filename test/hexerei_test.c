@@ -86,6 +86,65 @@ void test_hexerei_hex_readall(void)
 	}
 }
 
+void test_hexerei_hex_write_at(void)
+{
+	const char
+		*hex_input =
+		":020000021000EC\r\n"
+		":10C20000E0A5E6F6FDFFE0AEE00FE6FCFDFFE6FD93\r\n"
+		":10C21000FFFFF6F50EFE4B66F2FA0CFEF2F40EFE90\r\n"
+		":10C22000F04EF05FF06CF07DCA0050C2F086F097DF\r\n"
+		":10C23000F04AF054BCF5204830592D02E018BB03F9\r\n"
+		":020000022000DC\r\n"
+		":04000000FA00000200\r\n"
+		":00000001FF\r\n";
+
+	struct hex_test {
+		uint32_t position;
+		size_t   size;
+		const uint8_t input[32];
+		hexerei_err_e err;
+	} test_cases[] = {
+		{0x1000*16 + 0xC200, 16, {0x00, 0xEE, 0xAE, 0xBC, 0x01, 0x02, 0x03, 0x04, 0xCC, 0x05, 0x60, 0x71, 0x44, 0x12, 0xF7, 0xA1}, NO_ERR},
+		{0x1000*16 + 0xC200, 3, {0xAA, 0xBD, 0x1C}, NO_ERR},
+		{0x1000*16 + 0xC200, 18,{0x00, 0xEE, 0xAE, 0xBC, 0x01, 0x02, 0x03, 0x04, 0xCC, 0x05, 0x60, 0x71, 0x44, 0x12, 0xF7, 0xA1, 0xFF, 0xFD}, NO_ERR},
+		{0x1000*16 + 0xC202,	16, {0x00, 0xEE, 0xAE, 0xBC, 0x01, 0x02, 0x03, 0x04, 0xCC, 0x05, 0x60, 0x71, 0x44, 0x12, 0xF7, 0xA1}, NO_ERR},
+		{0x1000*16 + 0xC202, 20,	{0x00, 0xEE, 0xAE, 0xBC, 0x01, 0x02, 0x03, 0x04, 0xCC, 0x05, 0x60, 0x71, 0x44, 0x12, 0xF7, 0xA1, 0x01, 0x09, 0x21, 0x23}, NO_ERR},
+		{0x2000*16 - 2, 4, {0xAA, 0xBD, 0x1C, 0x2C}, OUT_OF_BOUNDS_ERR},
+		{0x2000 * 16, 6, {0xAA, 0xBD, 0x1C, 0x2C, 0x00, 0xFE}, OUT_OF_BOUNDS_ERR},
+		{0x2000 * 16, 4, {0xAA, 0xBD, 0x1C, 0x2C}, NO_ERR}
+	};
+
+	hexerei_hex_file_t *hexfile = &(hexerei_hex_file_t){0};
+	FILE *f = fmemopen((void*)hex_input, strlen(hex_input), "r");
+	hexerei_err_e herr = hexerei_hex_readall(f, &hexfile);
+	fclose(f);
+
+	TEST_ASSERT(herr == NO_ERR && hexfile != NULL);
+
+	int test_num = sizeof(test_cases)/sizeof(struct hex_test);
+	for(int i = 0; i < test_num; i++) {
+		struct hex_test test_case = test_cases[i];
+		FMT_MSG("Failed on test case #%d, pos: %d, len: %ld", i, test_case.position, test_case.size);
+		hexerei_err_e werr = hexerei_hex_write_at(hexfile, test_case.position,test_case.input, test_case.size);
+
+		if(werr != NO_ERR) {
+			TEST_ASSERT_EQUAL_MESSAGE(test_case.err, werr, assert_buf);
+			continue;
+		}
+
+		uint8_t *read_data = calloc(test_case.size, sizeof(uint8_t));
+		hexerei_err_e rerr = hexerei_hex_read_at(hexfile,test_case.position,test_case.size,read_data);
+		TEST_ASSERT_MESSAGE(rerr == NO_ERR, assert_buf);
+
+		// TODO missing record validation
+
+		TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(test_case.input, read_data, test_case.size, assert_buf);
+		free(read_data);
+	}
+	hexerei_hex_free(hexfile);
+}
+
 void test_hexerei_hex_read_at(void)
 {
 	const char
@@ -185,6 +244,7 @@ int main(void)
 {
 	UNITY_BEGIN();
 	RUN_TEST(test_hexerei_hex_readall);
+	RUN_TEST(test_hexerei_hex_write_at);
 	RUN_TEST(test_hexerei_hex_read_at);
 	return UNITY_END();
 }

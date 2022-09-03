@@ -59,7 +59,7 @@ hexerei_err_e hexerei_record_read(hexerei_record_t *record, uint8_t *output, siz
 
 hexerei_err_e hexerei_hex_readall(FILE *f, hexerei_hex_file_t **hf);
 hexerei_err_e hexerei_hex_read_at(hexerei_hex_file_t *hf, uint32_t pos, size_t size, uint8_t *read);
-hexerei_err_e hexerei_hex_write_at(hexerei_hex_file_t *hf, uint32_t pos, size_t size);
+hexerei_err_e hexerei_hex_write_at(hexerei_hex_file_t *hf, uint32_t pos, const uint8_t *wdata, size_t size);
 void          hexerei_hex_free(hexerei_hex_file_t *hf);
 
 
