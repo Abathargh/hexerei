@@ -58,6 +58,12 @@ cleanup:
 }
 
 hexerei_err_e
+hexerei_hex_write_at(hexerei_hex_file_t *hf, uint32_t pos, const uint8_t *wdata, size_t size)
+{
+	return NO_ERR;
+}
+
+hexerei_err_e
 hexerei_hex_read_at(hexerei_hex_file_t *hf, uint32_t pos, size_t size, uint8_t *read)
 {
 	record_view view = {0};
@@ -195,3 +201,4 @@ access_at(hexerei_hex_file_t *hf, uint32_t pos, size_t size, record_view *view)
 	}
 	return OUT_OF_BOUNDS_ERR;
 }
+
