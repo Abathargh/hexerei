@@ -19,6 +19,8 @@ jobs:
           sudo apt-get -y install gcc-9 cmake make valgrind
       - name: Checkout repo
         uses: actions/checkout@v2
+        with:
+          - submodules: "recursive"
       - name: Execute tests
         run: |
           mkdir build && cd build && cmake .. -B . && make test
