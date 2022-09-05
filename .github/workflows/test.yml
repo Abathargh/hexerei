@@ -1,0 +1,30 @@
+name: CI-Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  unit-tests:
+    name: "Unit Tests"
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Setup build environment
+        run: |
+          wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+          echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal main' | tee /etc/apt/sources.list.d/kitware.list >/dev/null    
+          sudo apt update
+          sudo apt-get -y install gcc-9 cmake make valgrind
+      - name: Checkout repo
+        uses: actions/checkout@v2
+      - name: Execute tests
+        run: |
+          mkdir build && cd build && cmake .. -B . && make test
+        env:
+          CC: gcc-9
+      - name: Check for memory leaks
+        run: |
+          for valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  -s ./build/hexerei_hexerei_test
+          valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  -s ./build/hexerei_hexerei_test
