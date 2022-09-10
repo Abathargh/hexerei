@@ -34,3 +34,12 @@ uint8_t hex_to_char(const char *in)
 	}
 	return r;
 }
+
+void encode_pair(uint8_t pair, unsigned char *hex_byte)
+{
+	// len(hex_byte) == 2
+	for(int i = 0; i < 2; i++) {
+		uint8_t n = (pair >> ((1 - i) * 4)) & 0x0f;
+		hex_byte[i] = n < 10 ? n + '0' : n + 'A' - 10;
+	}
+}

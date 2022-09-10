@@ -5,15 +5,19 @@
 
 typedef struct record_view {
 	uint32_t start;
-	int first;
+	int first; // TODO: optimize starting from this idx? need base too
 	hexerei_record_list_t *records;
 } record_view;
 
 static hexerei_err_e
 access_at(hexerei_hex_file_t *hf, uint32_t pos, size_t size, record_view *view);
 
+static void
+hex_encode(hexerei_record_t *rec, const uint8_t *data, size_t wlen, uint32_t start, uint32_t *index);
+
 extern uint8_t hex_to_char(const char *);
 extern hexerei_err_e decode_hexstr(const char *, size_t, char *);
+extern void encode_pair(uint8_t pair, unsigned char *hex_byte);
 extern uint8_t hexerei_record_data(hexerei_record_t *r, const char  **datap);
 
 
@@ -57,10 +61,66 @@ cleanup:
 	return err;
 }
 
+/*
+ * TODO
+ * read and write functions could work without alloc
+ * by iterating blocks of two digits and converting them
+ * in place
+ *
+ * update checksum
+ */
 hexerei_err_e
-hexerei_hex_write_at(hexerei_hex_file_t *hf, uint32_t pos, const uint8_t *wdata, size_t size)
+hexerei_hex_write_at(hexerei_hex_file_t *hf, uint32_t pos, const uint8_t *wdata, size_t wsize)
 {
-	return NO_ERR;
+	record_view view = {0};
+	hexerei_err_e err = access_at(hf, pos, wsize, &view);
+	if(err != NO_ERR) return err;
+
+	const size_t hsize = wsize * 2;
+	uint32_t written_len = 0;
+
+	unsigned char hexbuf[2];
+	uint32_t w_idx = 0;
+
+	for(size_t i = 0; i < view.records->length; i++) {
+		hexerei_record_t *curr = view.records->items[i];
+
+		const char *datap = &(const char){0};
+		err = hexerei_record_data(curr, &datap);
+		if(err != NO_ERR) {
+			hexerei_record_list_free(view.records);
+			return NULL_INPUT_ERR;
+		}
+
+		uint8_t len_data = curr->count*2;
+
+		if(i == 0 && view.start != 0) {
+			if(view.start + hsize < len_data) {
+				hex_encode(curr, wdata, wsize, view.start, &w_idx);
+				break;
+			}
+
+			HEX_ENCODE(curr, wdata, )
+			written_len += len_data - view.start;
+			continue;
+		}
+
+		uint32_t end = (hsize - written_len);
+		if(curr->count > hsize - written_len) {
+			memcpy(read_data + written_len, datap, end);
+			break;
+		} else {
+			memcpy(read_data + written_len, datap, len_data > end ? end : len_data);
+			written_len += len_data;
+		}
+	}
+
+	err = decode_hexstr(read_data, hsize, (char*)read);
+	hexerei_record_list_free(view.records);
+	free(read_data);
+	return err;
+
+
 }
 
 hexerei_err_e
@@ -202,3 +262,12 @@ access_at(hexerei_hex_file_t *hf, uint32_t pos, size_t size, record_view *view)
 	return OUT_OF_BOUNDS_ERR;
 }
 
+static void hex_encode(hexerei_record_t *rec,
+									const uint8_t *data,
+									size_t wlen,
+									uint32_t start,
+									uint32_t *index)
+{
+	for(size_t i = 0; i < wlen; i++)
+    encode_pair(data[*index++], (unsigned char*)&rec->data[start]);
+}

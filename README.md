@@ -11,3 +11,6 @@ cmake .. -B .
 make test    # to test everything out
 make hexerei # to build the lib as a static lib
 ```
+
+## License
+## Notes

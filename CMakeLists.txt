@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.22)
 project(hexerei C)
 
 set(CMAKE_C_STANDARD 99)
-add_compile_options(-Wall -Wextra)
+add_compile_options(-Wall -Wextra -fsanitize=address -fno-omit-frame-pointer)
+add_link_options(-fsanitize=address -fno-omit-frame-pointer)
 file(GLOB_RECURSE TEST_SOURCES "hexerei/*.*" "lib/list/*.*" "lib/unity/src/*.*")
 
 add_library(hexerei hexerei/hexerei.c hexerei/record.c hexerei/hexstr.c)
